@@ -1,0 +1,225 @@
+from pathlib import Path
+import pandas
+import re
+
+
+def create_symlinks(metadata, tmpdir):
+  # Ensuring outdir exists
+  os.makedirs(name = f"{tmpdir}/reads", exist_ok = True)
+
+  # Iterating over each row
+  for row in range(len(metadata.index)):
+    # Extracting sample information
+    sample_metadata = metadata.loc[row]
+    sample_name = sample_metadata["sample_name"]
+
+    # Defining input and output
+    mate = sample_metadata["mate"]
+    sample_file = os.path.realpath(sample_metadata["file"])
+    sample_link = f"{tmpdir}/reads/{sample_name}_{mate}.fastq.gz"
+    # Generate link filenames
+    #if sample_metadata["type"] == "Reads":
+    #  # Ensuring tmpdir exists
+    #  os.makedirs(name = f"{tmpdir}/reads", exist_ok = True)
+    #  # Defining input and output
+    #  mate = sample_metadata["mate"]
+    #  sample_file = os.path.realpath(sample_metadata["file"])
+    #  sample_link = f"{tmpdir}/reads/{sample_name}_{mate}.fastq.gz"
+    #else:
+    #  # Ensuring outdir exists
+    #  os.makedirs(name = f"{tmpdir}/assemblies", exist_ok = True)
+    #  # Defining input and output
+    #  sample_file = os.path.realpath(sample_metadata["file"])
+    #  sample_link = f"{tmpdir}/assemblies/{sample_name}.fasta"
+    # Symlinking file
+    if not os.path.exists(sample_link):
+      try:
+        os.symlink(src = sample_file, dst = sample_link)
+      except FileExistsError:
+        os.unlink(sample_link)
+        os.symlink(src = sample_file, dst = sample_link)
+  print("Files successfully linked!")
+  return True
+
+sample_files = []
+threshold = 80
+debug = True
+outdir = ""
+
+tmpdir = f"{outdir}/tmp"
+sample_file = [Path(sample).stem for sample in sample_files]
+pattern = re.compile(r"^(?P<file>\/(\S+\/)+(?P<sample_name>\w+?)(_(S\d+))?(_L\d+)_(?P<mate>R\d)(_\d+)*(?P<ext>(\.\w+)+))")
+
+# Extract named groups into a list of dictionaries
+metadata_raw = []
+for sample_file in sample_files:
+    match = pattern.search(sample_file)
+    if match:
+        metadata_raw.append(match.groupdict())
+
+# Convert the list of dictionaries to a pandas DataFrame
+metadata = pandas.DataFrame(metadata_raw)
+
+create_symlinks(metadata, tmpdir)
+
+
+rule all:
+  input:
+     f"{outdir}/Plasmids.tsv"
+
+
+rule make_db_dirs:
+  output:
+    directory(f"{database_path}")
+  message:
+    """
+    mkdir -p {output}
+    """
+  shell:
+    """
+    mkdir -p {output}
+    """
+
+
+rule fetch_database:
+  params:
+    database_path = rules.make_db_dirs.output
+  output:
+    Inc18 = f"{rules.make_db_dirs.output}/Inc18.fsa",
+    NT_Rep = f"{rules.make_db_dirs.output}/NT_Rep.fsa",
+    Rep1 = f"{rules.make_db_dirs.output}/Rep1.fsa",
+    Rep2 = f"{rules.make_db_dirs.output}/Rep2.fsa",
+    Rep3 = f"{rules.make_db_dirs.output}/Rep3.fsa",
+    RepA_N = f"{rules.make_db_dirs.output}/RepA_N.fsa",
+    RepL = f"{rules.make_db_dirs.output}/RepL.fsa",
+    Rep_trans = f"{rules.make_db_dirs.output}/Rep_trans.fsa",
+    enterobacteriales = f"{rules.make_db_dirs.output}/enterobacteriales.fsa"
+  message:
+    """
+    rm -fr {params.database_path}
+    git clone https://bitbucket.org/genomicepidemiology/plasmidfinder_db.git {params.database_path}
+    """
+  shell:
+    """
+    rm -fr {params.database_path}
+    git clone https://bitbucket.org/genomicepidemiology/plasmidfinder_db.git {params.database_path}
+    """
+
+
+rule make_database:
+  input:
+    Inc18 = rules.fetch_database.output.Inc18,
+    NT_Rep = rules.fetch_database.output.NT_Rep,
+    Rep1 = rules.fetch_database.output.Rep1,
+    Rep2 = rules.fetch_database.output.Rep2,
+    Rep3 = rules.fetch_database.output.Rep3,
+    RepA_N = rules.fetch_database.output.RepA_N,
+    RepL = rules.fetch_database.output.RepL,
+    Rep_trans = rules.fetch_database.output.Rep_trans,
+    enterobacteriales = rules.fetch_database.output.enterobacteriales
+  params:
+    database_dir = rules.make_db_dirs.output
+  output:
+    Inc18_comp = f"{rules.make_db_dirs.output}/Inc18.comp.b",
+    Inc18_length = f"{rules.make_db_dirs.output}/Inc18.length.b",
+    Inc18_name = f"{rules.make_db_dirs.output}/Inc18.name",
+    Inc18_seq = f"{rules.make_db_dirs.output}/Inc18.seq.b",
+    NT_Rep_comp = f"{rules.make_db_dirs.output}/NT_Rep.comp.b",
+    NT_Rep_length = f"{rules.make_db_dirs.output}/NT_Rep.length.b",
+    NT_Rep_name = f"{rules.make_db_dirs.output}/NT_Rep.name",
+    NT_Rep_seq = f"{rules.make_db_dirs.output}/NT_Rep.seq.b",
+    Rep1_comp = f"{rules.make_db_dirs.output}/Rep1.comp.b",
+    Rep1_length = f"{rules.make_db_dirs.output}/Rep1.length.b",
+    Rep1_name = f"{rules.make_db_dirs.output}/Rep1.name",
+    Rep1_seq = f"{rules.make_db_dirs.output}/Rep1.seq.b",
+    Rep2_comp = f"{rules.make_db_dirs.output}/Rep2.comp.b",
+    Rep2_length = f"{rules.make_db_dirs.output}/Rep2.length.b",
+    Rep2_name = f"{rules.make_db_dirs.output}/Rep2.name",
+    Rep2_seq = f"{rules.make_db_dirs.output}/Rep2.seq.b",
+    Rep3_comp = f"{rules.make_db_dirs.output}/Rep3.comp.b",
+    Rep3_length = f"{rules.make_db_dirs.output}/Rep3.length.b",
+    Rep3_name = f"{rules.make_db_dirs.output}/Rep3.name",
+    Rep3_seq = f"{rules.make_db_dirs.output}/Rep3.seq.b",
+    RepA_N_comp = f"{rules.make_db_dirs.output}/RepA_N.comp.b",
+    RepA_N_length = f"{rules.make_db_dirs.output}/RepA_N.length.b",
+    RepA_N_name = f"{rules.make_db_dirs.output}/RepA_N.name",
+    RepA_N_seq = f"{rules.make_db_dirs.output}/RepA_N.seq.b",
+    RepL_comp = f"{rules.make_db_dirs.output}/RepL.comp.b",
+    RepL_length = f"{rules.make_db_dirs.output}/RepL.length.b",
+    RepL_name = f"{rules.make_db_dirs.output}/RepL.name",
+    RepL_seq = f"{rules.make_db_dirs.output}/RepL.seq.b",
+    Rep_trans_comp = f"{rules.make_db_dirs.output}/Rep_trans.comp.b",
+    Rep_trans_length = f"{rules.make_db_dirs.output}/Rep_trans.length.b",
+    Rep_trans_name = f"{rules.make_db_dirs.output}/Rep_trans.name",
+    Rep_trans_seq = f"{rules.make_db_dirs.output}/Rep_trans.seq.b",
+    enterobacteriales_comp = f"{rules.make_db_dirs.output}/enterobacteriales.comp.b",
+    enterobacteriales_length = f"{rules.make_db_dirs.output}/enterobacteriales.length.b",
+    enterobacteriales_name = f"{rules.make_db_dirs.output}/enterobacteriales.name",
+    enterobacteriales_seq = f"{rules.make_db_dirs.output}/enterobacteriales.seq.b"
+  conda:
+    "envs/kma.yaml"
+  message:
+    """
+    kma index -i {input.Inc18} -o {params.database_dir}/Inc18
+    kma index -i {input.NT_Rep} -o {params.database_dir}/NT_Rep
+    kma index -i {input.Rep1} -o {params.database_dir}/Rep1
+    kma index -i {input.Rep2} -o {params.database_dir}/Rep2
+    kma index -i {input.Rep3} -o {params.database_dir}/Rep3
+    kma index -i {input.RepA_N} -o {params.database_dir}/RepA_N
+    kma index -i {input.RepL} -o {params.database_dir}/RepL
+    kma index -i {input.Rep_trans} -o {params.database_dir}/Rep_trans
+    kma index -i {input.enterobacteriales} -o {params.database_dir}/enterobacteriales
+    """
+  shell:
+    """
+    kma index -i {input.Inc18} -o {params.database_dir}/Inc18
+    kma index -i {input.NT_Rep} -o {params.database_dir}/NT_Rep
+    kma index -i {input.Rep1} -o {params.database_dir}/Rep1
+    kma index -i {input.Rep2} -o {params.database_dir}/Rep2
+    kma index -i {input.Rep3} -o {params.database_dir}/Rep3
+    kma index -i {input.RepA_N} -o {params.database_dir}/RepA_N
+    kma index -i {input.RepL} -o {params.database_dir}/RepL
+    kma index -i {input.Rep_trans} -o {params.database_dir}/Rep_trans
+    kma index -i {input.enterobacteriales} -o {params.database_dir}/enterobacteriales
+    """
+
+
+rule detect_plasmids_reads:
+  input:
+    mate1 = "%s/reads/{sample}_R1.fastq.gz" %tmpdir,
+    mate2 = "%s/reads/{sample}_R2.fastq.gz" %tmpdir,
+    dependency = rules.make_database.output.Inc18_comp
+  params:
+    database_path = rules.make_db_dirs.output,
+  output:
+    tmpdir = directory("%s/{sample}" %tmpdir),
+    plasmid_file = "%s/{sample}/results_tab.tsv" %tmpdir
+  conda:
+    "envs/kma.yaml"
+  message:
+    """
+    mkdir -p {output.tmpdir}
+    plasmidfinder.py -i {input.mate1} {input.mate2} -o {output.tmpdir} -p {params.database_path} -x
+    """
+  shell:
+    """
+	mkdir -p {output.tmpdir}
+    plasmidfinder.py -i {input.mate1} {input.mate2} -o {output.tmpdir} -p {params.database_path} -x
+    """
+
+
+rule summarize_plasmids:
+  input:
+    plasmid_files = expand(rules.detect_plasmids_reads.output.plasmid_file, sample = metadata["sample_name"].values.tolist())
+  params:
+    threshold = threshold,
+    debug = debug
+  output:
+    summary_file = "%s/Plasmids.tsv" %outdir
+  conda:
+    "envs/R.yaml"
+  message:
+    "Running scripts/summarize_plasmids.R on: {input.plasmid_files}"
+  script:
+    "scripts/summarize_plasmids.R"
+    

@@ -1,0 +1,8 @@
+channels:
+ - conda-forge
+dependencies:
+ - r-essentials
+ - r-logger
+ - r-yaml
+ - r-janitor
+
